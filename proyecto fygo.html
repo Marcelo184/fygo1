@@ -1,0 +1,674 @@
+<html><head><base href="https://example.com/registro-medico/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registro Médico Mensual</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f0f0f0;
+  }
+  section.container {
+    background-color: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  }
+  h1 {
+    color: #333;
+    text-align: center;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+  }
+  th, td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+  }
+  th {
+    background-color: #f2f2f2;
+  }
+  button {
+    margin: 5px;
+    padding: 10px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button:hover {
+    background-color: #45a049;
+  }
+  input[type="text"], input[type="number"], select {
+    width: 100%;
+    padding: 5px;
+    box-sizing: border-box;
+  }
+  .currency-input {
+    position: relative;
+  }
+  .currency-input input {
+    padding-left: 20px;
+  }
+  .currency-input::before {
+    content: "$";
+    position: absolute;
+    left: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  #mesSelector {
+    margin-bottom: 20px;
+    padding: 10px;
+    font-size: 16px;
+  }
+  #anioSelector {
+    margin-bottom: 20px;
+    padding: 10px;
+    font-size: 16px;
+  }
+  #chicasListaContainer {
+    margin-top: 20px;
+  }
+  tr:focus-within {
+    background-color: #e6f3ff;
+  }
+</style>
+</head>
+<body>
+<section class="container">
+  <h1>Registro Médico Mensual</h1>
+  
+  <div class="selectors">
+    <select id="anioSelector" onchange="cambiarAnio()">
+      <!-- Years will be populated dynamically -->
+    </select>
+    <select id="mesSelector" onchange="cambiarMes()">
+      <option value="1">Enero</option>
+      <option value="2">Febrero</option>
+      <option value="3">Marzo</option>
+      <option value="4">Abril</option>
+      <option value="5">Mayo</option>
+      <option value="6">Junio</option>
+      <option value="7">Julio</option>
+      <option value="8">Agosto</option>
+      <option value="9">Septiembre</option>
+      <option value="10">Octubre</option>
+      <option value="11">Noviembre</option>
+      <option value="12">Diciembre</option>
+    </select>
+  </div>
+
+  <table id="registroTable">
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Eco ($)</th>
+        <th>Reso ($)</th>
+        <th>Mamo ($)</th>
+        <th>Pap ($)</th>
+        <th>PAP OSEP ($)</th>
+        <th>OSEP (Fede Gaetano) ($)</th>
+        <th>OSEP (Pablo Mutti) ($)</th>
+        <th>OSEP (José Ojeda) ($)</th>
+        <th>OSEP (Lauri Ubeda) ($)</th>
+        <th>Chicas</th>
+        <th>Débito ($)</th>
+        <th>QR ($)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Filas de datos se agregarán aquí -->
+    </tbody>
+    <tfoot>
+      <tr>
+        <td><strong>Total</strong></td>
+        <td id="totalEco">$0,00</td>
+        <td id="totalReso">$0,00</td>
+        <td id="totalMamo">$0,00</td>
+        <td id="totalPap">$0,00</td>
+        <td id="totalPapOsep">$0,00</td>
+        <td id="totalOsepFede">$0,00</td>
+        <td id="totalOsepPablo">$0,00</td>
+        <td id="totalOsepJose">$0,00</td>
+        <td id="totalOsepLauri">$0,00</td>
+        <td>-</td>
+        <td id="totalDebito">$0,00</td>
+        <td id="totalQR">$0,00</td>
+      </tr>
+    </tfoot>
+  </table>
+  
+  <button onclick="agregarFila()">Agregar Fila</button>
+  <button onclick="quitarFila()">Quitar Fila</button>
+  <button onclick="agregarColumna()">Agregar Columna</button>
+  <button onclick="quitarColumna()">Quitar Columna</button>
+  <button onclick="generarResumenMensual()">Generar Resumen Mensual</button>
+  <button onclick="generarResumenAnual()">Generar Resumen Anual</button>
+
+  <div id="chicasListaContainer">
+    <h3>Administrar lista de Chicas</h3>
+    <input type="text" id="nuevaChica" placeholder="Nombre de la nueva chica">
+    <button onclick="agregarChica()">Agregar Chica</button>
+    <ul id="listaChicas"></ul>
+  </div>
+
+<script>
+// Variables globales para almacenar datos y estado
+let datosPorAnio = {}; // Almacena los datos de todos los años
+let listaChicasPorMes = {}; // Almacena la lista de chicas para cada mes y año
+let anioActual = new Date().getFullYear(); // Año actual
+let datosPorMes = {}; // Almacena los datos por mes (parece no utilizarse, considerar eliminar)
+let mesActual = 1; // Mes actual, inicializado en enero
+
+// Función para guardar datos en el almacenamiento local del navegador
+function guardarEnLocalStorage() {
+  localStorage.setItem('datosPorAnio', JSON.stringify(datosPorAnio));
+  localStorage.setItem('listaChicasPorMes', JSON.stringify(listaChicasPorMes));
+}
+
+// Función para cargar datos desde el almacenamiento local del navegador
+function cargarDeLocalStorage() {
+  const datosPorAnioGuardados = localStorage.getItem('datosPorAnio');
+  const listaChicasPorMesGuardadas = localStorage.getItem('listaChicasPorMes');
+  
+  if (datosPorAnioGuardados) {
+    datosPorAnio = JSON.parse(datosPorAnioGuardados);
+  }
+  
+  if (listaChicasPorMesGuardadas) {
+    listaChicasPorMes = JSON.parse(listaChicasPorMesGuardadas);
+  }
+}
+
+// Inicializa la estructura de datos para un año específico
+function inicializarAnio(anio) {
+  if (!datosPorAnio[anio]) {
+    datosPorAnio[anio] = {};
+    for (let mes = 1; mes <= 12; mes++) {
+      datosPorAnio[anio][mes] = [];
+    }
+  }
+  if (!listaChicasPorMes[anio]) {
+    listaChicasPorMes[anio] = {};
+    for (let mes = 1; mes <= 12; mes++) {
+      listaChicasPorMes[anio][mes] = ["Ana", "María", "Sofía", "Laura"];
+    }
+  }
+}
+
+// Cambia el año seleccionado y actualiza la tabla
+function cambiarAnio() {
+  guardarDatosActuales();
+  anioActual = parseInt(document.getElementById('anioSelector').value);
+  inicializarAnio(anioActual);
+  actualizarTabla();
+}
+
+// Popula el selector de años con opciones
+function populateYearSelector() {
+  const anioSelector = document.getElementById('anioSelector');
+  const currentYear = new Date().getFullYear();
+  for (let year = currentYear - 5; year <= currentYear + 5; year++) {
+    const option = document.createElement('option');
+    option.value = year;
+    option.textContent = year;
+    anioSelector.appendChild(option);
+  }
+  anioSelector.value = currentYear;
+}
+
+// Inicializa la estructura de datos para un mes específico (parece no utilizarse, considerar eliminar)
+function inicializarMes(mes) {
+  if (!datosPorMes[mes]) {
+    datosPorMes[mes] = [];
+  }
+}
+
+// Cambia el mes seleccionado y actualiza la tabla y la lista de chicas
+function cambiarMes() {
+  guardarDatosActuales();
+  mesActual = parseInt(document.getElementById('mesSelector').value);
+  actualizarTabla();
+  actualizarListaChicas();
+  actualizarSelectChicas();
+}
+
+// Guarda los datos actuales antes de cambiar de mes o año
+function guardarDatosActuales() {
+  datosPorAnio[anioActual][mesActual] = obtenerDatos();
+  guardarEnLocalStorage();
+}
+
+// Actualiza la tabla con los datos del mes y año actual
+function actualizarTabla() {
+  const tbody = document.getElementById('registroTable').getElementsByTagName('tbody')[0];
+  tbody.innerHTML = '';
+
+  inicializarAnio(anioActual);
+  
+  if (datosPorAnio[anioActual][mesActual].length === 0) {
+    agregarFila();
+  } else {
+    datosPorAnio[anioActual][mesActual].forEach(fila => agregarFila(fila));
+  }
+  
+  actualizarTotales();
+}
+
+// Agrega una nueva fila a la tabla
+function agregarFila(datosFila = null) {
+  const tabla = document.getElementById('registroTable').getElementsByTagName('tbody')[0];
+  const nuevaFila = tabla.insertRow();
+  const columnas = tabla.parentNode.rows[0].cells.length;
+  
+  for (let i = 0; i < columnas; i++) {
+    const celda = nuevaFila.insertCell();
+    if (i === 0) {
+      const input = document.createElement('input');
+      input.type = 'date';
+      if (datosFila) input.value = datosFila.Fecha;
+      celda.appendChild(input);
+    } else if (i === 10) {
+      const select = document.createElement('select');
+      
+      const todasLasChicas = new Set();
+      Object.values(listaChicasPorMes[anioActual]).forEach(chicas => {
+        chicas.forEach(chica => todasLasChicas.add(chica));
+      });
+      
+      todasLasChicas.forEach(chica => {
+        const option = document.createElement('option');
+        option.value = chica;
+        option.textContent = chica;
+        select.appendChild(option);
+      });
+      
+      if (datosFila) select.value = datosFila.Chicas;
+      celda.appendChild(select);
+    } else {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'currency-input';
+      if (datosFila) input.value = formatearPesos(datosFila[tabla.parentNode.rows[0].cells[i].textContent.replace(' ($)', '')]);
+      input.addEventListener('change', actualizarTotales);
+      input.addEventListener('blur', formatearMoneda);
+      celda.appendChild(input);
+    }
+  }
+  
+  if (!datosFila) {
+    datosPorAnio[anioActual][mesActual].push({});
+  }
+  
+  highlightActiveRow();
+  actualizarTotales();
+}
+
+// Resalta la fila activa cuando se enfoca en alguna de sus celdas
+function highlightActiveRow() {
+  const tabla = document.getElementById('registroTable');
+  const filas = tabla.getElementsByTagName('tr');
+  
+  for (let i = 1; i < filas.length - 1; i++) {
+    filas[i].addEventListener('focusin', function(e) {
+      this.style.backgroundColor = '#e6f3ff';
+    });
+    filas[i].addEventListener('focusout', function(e) {
+      this.style.backgroundColor = '';
+    });
+  }
+}
+
+// Quita la última fila de la tabla
+function quitarFila() {
+  const tabla = document.getElementById('registroTable');
+  const tbody = tabla.getElementsByTagName('tbody')[0];
+  if (tbody.rows.length > 1) {
+    tbody.deleteRow(-1);
+    datosPorAnio[anioActual][mesActual].pop();
+    actualizarTotales();
+  } else {
+    alert("No se puede eliminar la última fila.");
+  }
+}
+
+// Agrega una nueva columna a la tabla
+function agregarColumna() {
+  const nombreColumna = prompt("Ingrese el nombre de la nueva columna:");
+  if (nombreColumna) {
+    const tabla = document.getElementById('registroTable');
+    const filas = tabla.rows;
+
+    const th = document.createElement('th');
+    th.textContent = nombreColumna + (nombreColumna.includes('$') ? '' : ' ($)');
+    filas[0].appendChild(th);
+    
+    for (let i = 1; i < filas.length - 1; i++) {
+      const celda = filas[i].insertCell();
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'currency-input';
+      input.addEventListener('change', actualizarTotales);
+      input.addEventListener('blur', formatearMoneda);
+      celda.appendChild(input);
+    }
+    
+    const celdaTotal = filas[filas.length - 1].insertCell();
+    celdaTotal.id = `total${nombreColumna.replace(/\s+/g, '').replace('$', '')}`;
+    celdaTotal.textContent = '$0,00';
+    
+    actualizarTotales();
+  }
+}
+
+// Quita la última columna de la tabla
+function quitarColumna() {
+  const tabla = document.getElementById('registroTable');
+  const filas = tabla.rows;
+  const columnas = filas[0].cells.length;
+  
+  if (columnas > 13) {
+    const nombreColumna = filas[0].cells[columnas - 1].textContent.replace(' ($)', '');
+    
+    for (let i = 0; i < filas.length; i++) {
+      filas[i].deleteCell(-1);
+    }
+    
+    datosPorAnio[anioActual][mesActual].forEach(fila => {
+      delete fila[nombreColumna];
+    });
+    
+    actualizarTotales();
+  } else {
+    alert("No se pueden eliminar más columnas.");
+  }
+}
+
+// Formatea el valor de entrada como moneda
+function formatearMoneda(event) {
+  let valor = event.target.value;
+  valor = valor.replace(/[^\d.,]/g, '');
+  valor = valor.replace(',', '.');
+  const numero = parseFloat(valor);
+  if (!isNaN(numero)) {
+    event.target.value = formatearPesos(numero);
+  }
+}
+
+// Actualiza los totales de todas las columnas
+function actualizarTotales() {
+  const tabla = document.getElementById('registroTable');
+  const filas = tabla.rows;
+  const columnas = filas[0].cells.length;
+  
+  for (let j = 1; j < columnas; j++) {
+    if (filas[0].cells[j].textContent !== 'Chicas') {
+      let total = 0;
+      for (let i = 1; i < filas.length - 1; i++) {
+        const input = filas[i].cells[j].getElementsByTagName('input')[0];
+        const valor = parseFloat(input.value.replace(/[^\d.-]/g, '')) || 0;
+        total += valor;
+      }
+      filas[filas.length - 1].cells[j].textContent = formatearPesos(total);
+    }
+  }
+
+  datosPorAnio[anioActual][mesActual] = obtenerDatos();
+}
+
+// Formatea un número como valor en pesos
+function formatearPesos(valor) {
+  return '$' + valor.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+// Obtiene los datos actuales de la tabla
+function obtenerDatos() {
+  const tabla = document.getElementById('registroTable');
+  const filas = tabla.rows;
+  const datos = [];
+
+  for (let i = 1; i < filas.length - 1; i++) {
+    const fila = filas[i];
+    const datoFila = {};
+    
+    for (let j = 0; j < fila.cells.length; j++) {
+      const nombreColumna = filas[0].cells[j].textContent.replace(' ($)', '');
+      const input = fila.cells[j].querySelector('input, select');
+      let valor;
+      
+      if (input.tagName === 'SELECT') {
+        valor = input.value;
+      } else if (input.type === 'date') {
+        valor = input.value;
+      } else {
+        valor = parseFloat(input.value.replace(/[^\d.-]/g, '')) || 0;
+      }
+      
+      datoFila[nombreColumna] = valor;
+    }
+    
+    datos.push(datoFila);
+  }
+
+  return datos;
+}
+
+// Obtiene los datos mensuales para un mes específico
+function obtenerDatosMensuales(mes) {
+  const datos = datosPorAnio[anioActual][mes] || [];
+  const totales = calcularTotales(datos);
+  
+  const columnas = Object.keys(totales).filter(col => col !== 'Fecha' && col !== 'Chicas');
+  const filas = datos.map(fila => 
+    columnas.map(col => typeof fila[col] === 'number' ? formatearPesos(fila[col]) : fila[col] || '')
+  );
+  
+  filas.push(columnas.map(col => formatearPesos(totales[col])));
+  
+  return { columnas, filas };
+}
+
+// Genera un resumen mensual en PDF
+function generarResumenMensual() {
+  const datos = obtenerDatos();
+  const totales = calcularTotales(datos);
+  
+  const doc = new jspdf.jsPDF();
+  
+  doc.text("Resumen Mensual - " + obtenerNombreMes(mesActual), 14, 15);
+  
+  const columnas = Object.keys(datos[0]);
+  const filas = datos.map(fila => 
+    Object.keys(fila).map(col => 
+      typeof fila[col] === 'number' ? formatearPesos(totales[col]) : fila[col]
+    )
+  );
+  filas.push(columnas.map(col => 
+    typeof totales[col] === 'number' ? formatearPesos(totales[col]) : totales[col] || ''
+  ));
+  
+  doc.autoTable({
+    head: [columnas],
+    body: filas,
+    startY: 20,
+  });
+  
+  doc.save("resumen_mensual_" + obtenerNombreMes(mesActual) + ".pdf");
+}
+
+// Genera un resumen anual en PDF
+function generarResumenAnual() {
+  const doc = new jspdf.jsPDF();
+  let yOffset = 15;
+
+  doc.setFontSize(16);
+  doc.text(`Resumen Anual ${anioActual}`, 14, yOffset);
+  yOffset += 10;
+
+  const totalesAnuales = {};
+
+  for (let mes = 1; mes <= 12; mes++) {
+    const nombreMes = obtenerNombreMes(mes);
+    const { columnas, filas } = obtenerDatosMensuales(mes);
+
+    if (filas.length > 1) {  
+      doc.setFontSize(14);
+      doc.text(nombreMes, 14, yOffset);
+      yOffset += 5;
+
+      doc.autoTable({
+        head: [columnas],
+        body: filas,
+        startY: yOffset,
+        margin: { left: 14 },
+        tableWidth: 180,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [200, 200, 200] },
+      });
+
+      yOffset = doc.lastAutoTable.finalY + 10;
+
+      const totalesMes = filas[filas.length - 1];
+      columnas.forEach((col, index) => {
+        const valor = parseFloat(totalesMes[index].replace(/[^\d.-]/g, '')) || 0;
+        totalesAnuales[col] = (totalesAnuales[col] || 0) + valor;
+      });
+    }
+
+    if (yOffset > 270) {  
+      doc.addPage();
+      yOffset = 15;
+    }
+  }
+
+  doc.addPage();
+  doc.setFontSize(16);
+  doc.text("Resumen Anual Total", 14, 15);
+
+  const columnasAnuales = Object.keys(totalesAnuales);
+  const filasAnuales = [
+    columnasAnuales.map(col => formatearPesos(totalesAnuales[col]))
+  ];
+
+  doc.autoTable({
+    head: [columnasAnuales],
+    body: filasAnuales,
+    startY: 25,
+    margin: { left: 14 },
+    tableWidth: 180,
+    styles: { fontSize: 10 },
+    headStyles: { fillColor: [100, 100, 100], textColor: 255 },
+  });
+
+  doc.save(`resumen_anual_${anioActual}.pdf`);
+}
+
+// Calcula los totales de todas las columnas
+function calcularTotales(datos) {
+  const totales = {};
+  
+  datos.forEach(fila => {
+    Object.keys(fila).forEach(columna => {
+      if (columna !== 'Fecha' && columna !== 'Chicas') {
+        totales[columna] = (totales[columna] || 0) + (parseFloat(fila[columna]) || 0);
+      }
+    });
+  });
+  
+  return totales;
+}
+
+// Obtiene el nombre del mes a partir de su número
+function obtenerNombreMes(numeroMes) {
+  const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+  return meses[numeroMes - 1];
+}
+
+// Agrega una nueva chica a la lista del mes actual
+function agregarChica() {
+  const nuevaChica = document.getElementById('nuevaChica').value.trim();
+  if (nuevaChica && !listaChicasPorMes[anioActual][mesActual].includes(nuevaChica)) {
+    listaChicasPorMes[anioActual][mesActual].push(nuevaChica);
+    actualizarListaChicas();
+    actualizarSelectChicas();
+    document.getElementById('nuevaChica').value = '';
+    guardarEnLocalStorage();
+  }
+}
+
+// Elimina una chica de la lista del mes actual
+function eliminarChica(chica) {
+  const index = listaChicasPorMes[anioActual][mesActual].indexOf(chica);
+  if (index > -1) {
+    listaChicasPorMes[anioActual][mesActual].splice(index, 1);
+    actualizarListaChicas();
+    actualizarSelectChicas();
+    guardarEnLocalStorage();
+  }
+}
+
+// Actualiza la lista visual de chicas
+function actualizarListaChicas() {
+  const lista = document.getElementById('listaChicas');
+  lista.innerHTML = '';
+  listaChicasPorMes[anioActual][mesActual].forEach(chica => {
+    const li = document.createElement('li');
+    li.textContent = chica;
+    const botonEliminar = document.createElement('button');
+    botonEliminar.textContent = 'Eliminar';
+    botonEliminar.onclick = () => eliminarChica(chica);
+    li.appendChild(botonEliminar);
+    lista.appendChild(li);
+  });
+}
+
+// Actualiza los selectores de chicas en la tabla
+function actualizarSelectChicas() {
+  const tabla = document.getElementById('registroTable');
+  const filas = tabla.rows;
+  for (let i = 1; i < filas.length - 1; i++) {
+    const select = filas[i].cells[10].getElementsByTagName('select')[0];
+    const valorActual = select.value;
+    select.innerHTML = '';
+    
+    if (valorActual && !listaChicasPorMes[anioActual][mesActual].includes(valorActual)) {
+      const option = document.createElement('option');
+      option.value = valorActual;
+      option.textContent = valorActual;
+      select.appendChild(option);
+    }
+    
+    listaChicasPorMes[anioActual][mesActual].forEach(chica => {
+      const option = document.createElement('option');
+      option.value = chica;
+      option.textContent = chica;
+      select.appendChild(option);
+    });
+    
+    select.value = valorActual;
+  }
+}
+
+// Inicializa la aplicación
+function init() {
+  populateYearSelector();
+  cargarDeLocalStorage();
+  inicializarAnio(anioActual);
+  cambiarMes();
+  actualizarListaChicas();
+}
+
+// Llama a la función de inicialización al cargar la página
+init();
+</script>
+</section>
+</body>
+</html>
